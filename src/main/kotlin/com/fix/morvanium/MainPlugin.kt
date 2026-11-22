@@ -2,7 +2,6 @@ package com.fix.morvanium
 
 import com.xuncorp.spw.workshop.api.PluginContext
 import com.xuncorp.spw.workshop.api.SpwPlugin
-import com.xuncorp.spw.workshop.api.WorkshopApi
 import java.util.Timer
 import java.util.TimerTask
 
@@ -16,9 +15,7 @@ class MainPlugin(context: PluginContext) : SpwPlugin(context) {
     private var refreshedForCurrentTrack: Boolean = false
 
     override fun start() {
-        println("[MorvaniumFix] Plugin iniciado. Inspecionando API...")
-        logAvailableApiMethods()
-
+        println("[MorvaniumFix] Plugin iniciado.")
         watchdogTimer = Timer("MorvaniumSyncWatchdog", true).apply {
             scheduleAtFixedRate(object : TimerTask() {
                 override fun run() {
@@ -34,19 +31,16 @@ class MainPlugin(context: PluginContext) : SpwPlugin(context) {
         println("[MorvaniumFix] Plugin encerrado.")
     }
 
-    private fun logAvailableApiMethods() {
-        try {
-            val apiClass = WorkshopApi::class.java
-            println("[MorvaniumFix] WorkshopApi methods: " + apiClass.methods.joinToString { it.name })
-        } catch (e: Exception) {
-            println("[MorvaniumFix] Erro ao inspecionar WorkshopApi: ${e.message}")
-        }
-    }
-
     private fun checkAndSyncPlayback() {
         try {
-            val apiInstance = getWorkshopApiInstance() ?: return
-            val controller = findPlaybackController(apiInstance) ?: return
+            val apiClass = Class.forName("com.xuncorp.spw.workshop.api.WorkshopApi")
+            val apiInstance = try {
+                apiClass.getDeclaredField("INSTANCE").get(null)
+            } catch (_: Throwable) {
+                null
+            }
+
+            val controller = findPlaybackController(apiClass, apiInstance) ?: return
 
             val currentTrack = invokeGetter(controller, "getCurrentMediaItem", "getMediaItem", "getCurrentTrack", "getPlayingItem")?.toString() ?: ""
             val currentPos = (invokeGetter(controller, "getCurrentPosition", "getPosition", "getProgress") as? Number)?.toLong() ?: -1L
@@ -55,13 +49,11 @@ class MainPlugin(context: PluginContext) : SpwPlugin(context) {
 
             if (!isPlaying) return
 
-            // Detecta mudança de faixa (inclusive via Morvanium)
             if (currentTrack.isNotEmpty() && currentTrack != lastTrackSignature) {
                 lastTrackSignature = currentTrack
                 refreshedForCurrentTrack = false
                 stalledTicks = 0
 
-                // Aguarda 1.2s após a troca e força sincronização caso a duração tenha ficado presa na faixa anterior
                 Timer("MorvaniumTrackRefresh", true).schedule(object : TimerTask() {
                     override fun run() {
                         val durNow = (invokeGetter(controller, "getDuration", "getTotalDuration") as? Number)?.toLong() ?: -1L
@@ -76,7 +68,6 @@ class MainPlugin(context: PluginContext) : SpwPlugin(context) {
                 return
             }
 
-            // Detecta se os segundos congelaram durante reprodução ativa
             if (currentPos >= 0 && currentPos == lastPosition) {
                 stalledTicks++
                 if (stalledTicks >= 2 && !refreshedForCurrentTrack) {
@@ -91,7 +82,7 @@ class MainPlugin(context: PluginContext) : SpwPlugin(context) {
             lastPosition = currentPos
             if (totalDur > 0) lastDuration = totalDur
 
-        } catch (_: Exception) {
+        } catch (_: Throwable) {
         }
     }
 
@@ -103,38 +94,33 @@ class MainPlugin(context: PluginContext) : SpwPlugin(context) {
             }
             seekMethod?.invoke(controller, target)
             println("[MorvaniumFix] Playback ressincronizado em ${target}ms")
-        } catch (e: Exception) {
-            println("[MorvaniumFix] Falha no seekTo: ${e.message}")
-        }
-    }
-
-    private fun getWorkshopApiInstance(): Any? {
-        return try {
-            WorkshopApi.INSTANCE
         } catch (_: Throwable) {
-            try {
-                WorkshopApi::class.java.getDeclaredField("INSTANCE").get(null)
-            } catch (_: Throwable) {
-                WorkshopApi::class.java
-            }
         }
     }
 
-    private fun findPlaybackController(api: Any): Any? {
-        if (api is Class<*>) {
-            val getter = api.methods.firstOrNull { it.name.contains("Playback", true) || it.name.contains("Player", true) }
-            return getter?.invoke(null)
-        }
-        val getter = api.javaClass.methods.firstOrNull {
+    private fun findPlaybackController(apiClass: Class<*>, apiInstance: Any?): Any? {
+        val methods = if (apiInstance != null) apiInstance.javaClass.methods else apiClass.methods
+        val getter = methods.firstOrNull {
             it.parameterCount == 0 && (it.name.contains("Playback", true) || it.name.contains("Player", true) || it.name.contains("Controller", true))
+        } ?: return null
+
+        return try {
+            getter.invoke(apiInstance)
+        } catch (_: Throwable) {
+            null
         }
-        return getter?.invoke(api) ?: api
     }
 
     private fun invokeGetter(target: Any, vararg names: String): Any? {
         for (name in names) {
             val m = target.javaClass.methods.firstOrNull { it.name == name && it.parameterCount == 0 }
-            if (m != null) return m.invoke(target)
+            if (m != null) {
+                return try {
+                    m.invoke(target)
+                } catch (_: Throwable) {
+                    null
+                }
+            }
         }
         return null
     }
