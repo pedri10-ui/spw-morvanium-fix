@@ -26,3 +26,16 @@ spmod {
     PluginName = "Morvanium Time & Discord RPC Fix"
     PluginDescription = "Corrige o travamento de segundos e duração no Discord Rich Presence durante transições do Morvanium."
 }
+tasks.register("inspectApi") {
+    doLast {
+        val jar = configurations.compileClasspath.get().first { it.name.contains("spw-workshop-api") }
+        exec {
+            commandLine(
+                "javap", "-cp", jar.absolutePath,
+                "com.xuncorp.spw.workshop.api.WorkshopApi\$Playback",
+                "com.xuncorp.spw.workshop.api.PlaybackExtensionPoint\$State",
+                "com.xuncorp.spw.workshop.api.PlaybackExtensionPoint\$MediaItem"
+            )
+        }
+    }
+}
