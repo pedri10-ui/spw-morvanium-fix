@@ -16,11 +16,17 @@ jobs:
       - name: Setup Gradle
         uses: gradle/actions/setup-gradle@v4
 
-      - name: Build SPMOD
-        run: gradle build
+      - name: Build and Package SPMOD
+        run: |
+          gradle tasks --group="spw" || gradle tasks
+          gradle build
+          gradle spmod 2>/dev/null || gradle packageSpmod 2>/dev/null || true
+          find build -type f
 
       - name: Upload SPMOD Artifact
         uses: actions/upload-artifact@v4
         with:
           name: spw-morvanium-fix
-          path: build/libs/*.spmod
+          path: |
+            build/**/*.spmod
+            build/libs/*.jar
