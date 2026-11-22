@@ -1,7 +1,6 @@
 plugins {
     id("java-library")
     kotlin("jvm") version "2.4.20"
-    kotlin("kapt") version "2.4.20"
     id("com.xuncorp.spw.workshop") version "0.1.0-dev22"
 }
 
@@ -17,7 +16,6 @@ kotlin {
 dependencies {
     compileOnly(kotlin("stdlib"))
     compileOnly(libs.spw.workshop.api)
-    kapt(libs.spw.workshop.api)
 }
 
 spmod {
