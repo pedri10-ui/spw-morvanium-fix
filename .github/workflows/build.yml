@@ -19,7 +19,7 @@ jobs:
       - name: Inspect WorkshopApi Playback
         run: |
           gradle dependencies --configuration compileClasspath > /dev/null
-          API_JAR=$(find ~/.gradle/caches -name "*spw-workshop-api*.jar" | head -n 1)
+          API_JAR=$(find ~/.gradle/caches -name "spw-workshop-api-0.1.0-dev22.jar" | head -n 1)
           javap -cp "$API_JAR" \
             'com.xuncorp.spw.workshop.api.WorkshopApi$Playback' \
             'com.xuncorp.spw.workshop.api.PlaybackExtensionPoint$State' \
