@@ -18,11 +18,13 @@ jobs:
 
       - name: Build and Collect SPMOD
         run: |
-          gradle tasks --all | grep -i spmod || true
           gradle build
+          API_JAR=$(find ~/.gradle/caches -name "*spw-workshop-api*.jar" | head -n 1)
+          echo "=== API JAR: $API_JAR ==="
+          jar tf "$API_JAR" | grep "com/xuncorp/spw/workshop/api"
+          javap -cp "$API_JAR" $(jar tf "$API_JAR" | grep "com/xuncorp/spw/workshop/api/.*\.class$" | sed 's/\.class$//;s/\//./g')
           mkdir -p dist
           find . -type f \( -name "*.spmod" -o -name "*.jar" \) ! -path "./.gradle/*" -exec cp {} dist/ \;
-          ls -la dist/
 
       - name: Upload SPMOD Artifact
         uses: actions/upload-artifact@v4
